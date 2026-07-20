@@ -1,0 +1,31 @@
+{
+  "iceServers":[
+                {"url": "stun:tokyo.fi.chat:3478"},{"url":"turn:tokyo.fi.chat:3478","username":"allcom","credential":"allcompass"},
+                {"url": "stun:gfax.net:3478"},{"url":"turn:gfax.net:3478","username":"allcom","credential":"allcompass"}
+              ],
+  "pushapiServers":[{"url":"https://pushapi.beagle.chat","appKey":"08726e938c624c4da9dcd9a85f2bbcd8","registerPush":"/push-api/register","notification":"/push-api/notification","push":"//push-api/push-message"},
+                  {"url":"https://tokyo.fi.chat/","appKey":"08726e938c624c4da9dcd9a85f2bbcd8","registerPush":"/push-api/register","notification":"/push-api/notification","push":"//push-api/push-message"}],
+  "socketioServers":[{"url":"https://io.beagle.chat"}],
+  "licodeServers": [{"url":"https://la.beagle.chat/","serverId":"695e026f1fbf85581c7651ba","serverKey":"4659","title":"Las Angels"},
+                  {"url":"https://west.beagle.chat/","serverId":"696198461b2ad6f80e7d7be8","serverKey":"13061","title":"West Coast, USA"},
+                  {"url":"https://ny.beagle.chat/","serverId":"6729847cbe572844754d318f","serverKey":"2236","title":"New York"},
+                  {"url":"https://eu.beagle.chat/","serverId":"695e026f1fbf85581c7651ba","serverKey":"4659","title":"Europe"},
+                  {"url":"https://sg.beagle.chat/","serverId":"60c07850a6ac8412e7034716","serverKey":"4659","title":"Singapore"},
+                  {"url":"https://sh.callt.net/","serverId":"60c07850a6ac8412e7034716","serverKey":"4659","title":"Shanghai"},
+                  {"url":"https://t.callt.net:3001/","serviceId":"6729847cbe572844754d318f","serverKey":"2236","title":"Tokyo"}],
+  "bootstrapNodes":[{"ipv4":"47.100.103.201", "port":"33445", "publicKey":"CX1XH419p4xJ5SV4KvDxBeKYSRdMJW9QpdWJY8owUxHd"},
+                  {"ipv4":"144.202.113.167", "port":"33445", "publicKey":"EfT4YMq6qfHdDsCiBCgsEmA78E2NxVYVKVUS9bD6w9GH"},
+                  {"ipv4":"52.83.171.135", "port":"443", "publicKey":"5tuHgK1Q4CYf4K5PutsEPK5E3Z7cbtEBdx7LwmdzqXHL"},
+                  {"ipv4":"52.83.191.228", "port":"33445","publicKey": "3khtxZo89SBScAMaHhTvD68pPHiKxgZT6hTCSZZVgNEm"},
+                  {"ipv4":"13.58.208.50", "port":"33445","publicKey":"89vny8MrKdDKs7Uta9RdVmspPjnRMdwMmaiEW27pZ7gh"},
+                  {"ipv4":"18.216.102.47", "port":"33445","publicKey":"G5z8MqiNDFTadFUPfMdYsYtkUDbX5mNCMVHMZtsCnFeb"},
+                  {"ipv4":"18.216.6.197", "port":"33445","publicKey":"H8sqhRrQuJZ6iLtP2wanxt4LzdNrN2NNFnpPdq1uJ9n2"},
+                  {"ipv4":"54.193.141.205", "port":"33445","publicKey":"7TfZWZNV8vnBxxWzJXuvKgX2QyKkLpg2oXx3LQ5tg8LW"},
+                  {"ipv4":"52.74.215.181", "port":"33445","publicKey":"Xv6d34WaUw9bPn7YihzVAFw7D2igbQJZ3jwmzzfYVFV"},
+                  {"ipv4":"52.63.19.190", "port":"33445","publicKey":"EeNenbyS4sx3qtu82esT1V1NMe9dZib5LyQmYGM6fboK"},
+                  {"ipv4":"52.57.248.163", "port":"33445","publicKey":"CfJLve8FNQPQJ9xYQ8oEVkPxeAPCN7iSdhnYFkWmWgLn"},
+                  {"ipv4":"35.179.41.220", "port":"33445","publicKey":"6u2vKadPa9wqDf531QaZy7FJN3c7Wzntm7dKXxXqvyNB"},
+                  {"ipv4":"43.129.244.17", "port":"33445","publicKey":"8qoXec3GGYGvMrnim4mNwsCUZeygjMizXgFjTEuFPA9u"}],
+  "expressNodes":[{"ipv4":"lens.beagle.chat", "port":"443", "publicKey":"ECbs4GxwGzxGerNkmqDJFibEmevu8jAXqAZtikccvD95"}],
+  "ensWorker":[{"url":"https://beagle.beaglechat.workers.dev"}]
+}
