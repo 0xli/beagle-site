@@ -15,6 +15,8 @@
                   {"url":"https://t.callt.net:3001/","serviceId":"6729847cbe572844754d318f","serverKey":"2236","title":"Tokyo"}],
   "bootstrapNodes":[{"ipv4":"47.100.103.201", "port":"33445", "publicKey":"CX1XH419p4xJ5SV4KvDxBeKYSRdMJW9QpdWJY8owUxHd"},
                   {"ipv4":"144.202.113.167", "port":"33445", "publicKey":"EfT4YMq6qfHdDsCiBCgsEmA78E2NxVYVKVUS9bD6w9GH"},
+                  {"ipv4":"139.129.193.117", "port":"33445", "publicKey":"67UQhssARwMky1YgFA2oDGZ1RiQYQmS6JqWFHxtopKq5"},
+                  {"ipv4":"149.28.98.141", "port":"33445", "publicKey":"81PPfuEyzSovgxymxr2ifiCWXdB5CGaiofx5MrxnhYV7"},
                   {"ipv4":"52.83.171.135", "port":"443", "publicKey":"5tuHgK1Q4CYf4K5PutsEPK5E3Z7cbtEBdx7LwmdzqXHL"},
                   {"ipv4":"52.83.191.228", "port":"33445","publicKey": "3khtxZo89SBScAMaHhTvD68pPHiKxgZT6hTCSZZVgNEm"},
                   {"ipv4":"13.58.208.50", "port":"33445","publicKey":"89vny8MrKdDKs7Uta9RdVmspPjnRMdwMmaiEW27pZ7gh"},
