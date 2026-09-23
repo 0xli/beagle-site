@@ -1,0 +1,43 @@
+name: assemble-android-apk-parts
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Release tag (e.g. android-v1.4.34)
+        required: true
+      final_name:
+        description: Final APK filename
+        required: true
+      expected_sha256:
+        description: Optional sha256 to verify (empty = skip)
+        required: false
+        default: ""
+jobs:
+  assemble:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Assemble parts into APK and replace release assets
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ inputs.tag }}
+          NAME: ${{ inputs.final_name }}
+          EXPECTED: ${{ inputs.expected_sha256 }}
+          REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          mkdir -p work && cd work
+          gh release download "$TAG" -R "$REPO" -p "${NAME}.part*"
+          cat $(ls ${NAME}.part* | sort) > "$NAME"
+          GOT=$(shasum -a 256 "$NAME" | awk '{print $1}')
+          echo "assembled $(wc -c < "$NAME") bytes sha256=$GOT"
+          if [ -n "$EXPECTED" ]; then
+            test "$GOT" = "$EXPECTED"
+          fi
+          gh release upload "$TAG" -R "$REPO" "$NAME" --clobber
+          for f in ${NAME}.part*; do
+            id=$(gh api "repos/$REPO/releases/tags/$TAG" --jq ".assets[] | select(.name==\"$f\") | .id")
+            gh api -X DELETE "repos/$REPO/releases/assets/$id"
+          done
+          gh release view "$TAG" -R "$REPO"
