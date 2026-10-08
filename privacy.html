@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Privacy Policy — Beagle Chat browser extension</title>
+<style>
+  :root { --bg:#0b0b0f; --field:#121218; --border:#23232c; --text:#f4f2fa; --text2:#c9c6d6; --muted:#8d8b9a; --faint:#6f6d7d; --accent:#7c5cff;
+          --ui:'IBM Plex Sans',ui-sans-serif,system-ui,-apple-system,sans-serif; --mono:'IBM Plex Mono',ui-monospace,'SF Mono',Menlo,monospace; color-scheme:dark; }
+  * { box-sizing:border-box } body { margin:0; background:var(--bg); color:var(--text); font-family:var(--ui); font-size:15px; line-height:1.65 }
+  a { color:#9b83ff; text-decoration:none } a:hover { text-decoration:underline }
+  main { max-width:760px; margin:0 auto; padding:44px 20px 80px }
+  h1 { font-size:32px; line-height:1.15; letter-spacing:-.02em; font-weight:600; margin:0 0 6px }
+  .sub { font-family:var(--mono); font-size:12px; letter-spacing:.14em; text-transform:uppercase; color:var(--accent); margin:0 0 34px }
+  h2 { font-size:19px; font-weight:600; margin:38px 0 12px } p, li { color:var(--text2) } ul { padding-left:22px } li { margin:0 0 8px }
+  .card { background:var(--field); border:1px solid var(--border); border-radius:12px; padding:18px 20px; margin:0 0 14px }
+  .card b { color:var(--text) } table { width:100%; border-collapse:collapse; font-size:14px } td { padding:8px 6px; border-top:1px solid var(--border); vertical-align:top; color:var(--text2) } td:first-child { color:var(--text); white-space:nowrap; font-family:var(--mono); font-size:12.5px }
+  footer { border-top:1px solid var(--border); margin-top:52px; padding-top:22px; font-family:var(--mono); font-size:12px; color:var(--faint) }
+</style>
+</head>
+<body>
+<main>
+  <h1>Privacy Policy</h1>
+  <p class="sub">Beagle Chat — browser extension · effective 2026-09-29</p>
+
+  <p>Beagle Chat for the browser is a messaging client and a Solana wallet that run entirely on your device.
+  It has no account system and no analytics. The one service of ours that receives page or profile content is the
+  Fill agent, and only when you press Fill with Beagle (section 2). This page says
+  exactly what the extension keeps, where, and which network services it talks to.</p>
+
+  <h2>1. What the extension stores, and where</h2>
+  <div class="card">
+    <table>
+      <tr><td>Carrier identity</td><td>The keypair that <b>is</b> your Beagle identity (format <code>decent-peer-tox-keypair-v1</code>). Created on your device, stored in the extension's IndexedDB, never sent anywhere. You can export it as a file and import it into another Beagle client; anyone holding that file is you.</td></tr>
+      <tr><td>Profile</td><td>The name, one-line description and avatar you choose. Sent only to the friends you add (it travels inside a friend request and over your sessions) and, if you register a <code>beagles.eth</code> name, published in that public record by your own action.</td></tr>
+      <tr><td>Friends and messages</td><td>Your roster, pending requests and message history, in the extension's IndexedDB on this device. Messages are end-to-end encrypted between you and the friend; relays and bridges carry ciphertext.</td></tr>
+      <tr><td>Private profile</td><td>Fields you fill in under Profile › Private profile (email, company, bio…), each with a disclosure policy you set. Stored on this device. Fields set to <em>private</em> or <em>ask each time</em> are never sent anywhere. When you press Fill with Beagle, fields set to <em>public</em> or <em>contacts</em> may be sent to the Fill agent to answer that form (section 2).</td></tr>
+      <tr><td>Answer bank</td><td>Questions and the answers you gave on forms with Fill with Beagle, and the names and checksums of files you used, so the next form can reuse them. Stored on this device with your identity.</td></tr>
+      <tr><td>Wallet</td><td>Solana seed phrases and private keys, encrypted with AES-GCM under a password you choose (PBKDF2 key derivation), in the extension's local storage. Signing happens on your device. dApp connection approvals are stored locally.</td></tr>
+      <tr><td>Preferences</td><td>Language, theme, network choice, notification choices — local storage.</td></tr>
+    </table>
+  </div>
+  <p>Nothing above is synchronised, backed up or copied to any server operated by us. Removing the extension removes it all; export your identity key and your wallet's recovery phrase first if you want to keep them.</p>
+
+  <h2>2. Network services the extension talks to</h2>
+  <ul>
+    <li><b>Beagle relay bridges</b> (<code>bridge.beagle.chat</code>, <code>im.beagle.chat</code>): WebSocket connections that carry the peer's encrypted traffic to the Carrier relay network. A bridge sees your public key and your connection, not message content.</li>
+    <li><b>Carrier bootstrap and relay nodes</b> and the <b>offline-mail relay</b> (<code>lens.beagle.chat</code>): the peer-to-peer network itself. Messages to a friend who is offline wait there, encrypted, until they connect.</li>
+    <li><b>Server list</b> (<code>beagle.chat/assets/bgservers.json</code>): the published list of the nodes above, fetched at start.</li>
+    <li><b>beagles.eth name directory</b> (<code>ens-gateway.beaglechat.workers.dev</code>): read to resolve names and avatars; written only when you register or edit your own name, with a record you sign.</li>
+    <li><b>Solana RPC</b>: balance, transaction history and transaction submission for the wallet — public blockchain data, using the network you select.</li>
+    <li><b>Wallet API</b> (<code>wallet.licode.fun</code>): optional signed-in features of the wallet (a session token you can refresh or clear in the wallet's settings).</li>
+    <li><b>Avatar images</b> (<code>api.beagle.chat</code> and the public NFT CDN): CryptoPunk avatar pictures.</li>
+    <li><b>Beagle Fill agent</b> (<code>fill.beagles.eth</code>, operated by Decent Network), <em>only when you press Fill with Beagle on a page</em>. It receives:
+      <ul>
+        <li>that page's address, title and visible text (up to 32 kB);</li>
+        <li>the form's fields and their current values, except phone and e-mail fields and private-profile fields set to <em>private</em> or <em>ask each time</em>;</li>
+        <li>your answer bank, and your profile and private-profile fields set to <em>public</em> or <em>contacts</em>.</li>
+      </ul>
+      These travel end-to-end encrypted over the Carrier network, like a message to a friend. The agent answers with proposed values and a price in points; the extension writes accepted answers into the page, and you submit the form yourself.
+      <p>The agent reads the request with a language model running on Decent Network's own hardware. Page text is not sent to any third-party AI provider. The agent keeps each request and its conversation for up to 30 days, to continue the conversation and fix errors, and then deletes them; its service logs are kept for 7 days. A points record is kept for billing: your account id, the request id, the points, and counts, with no form content. Send <code>/forget</code> to the Fill agent in chat at any time, and it deletes everything it holds about you except that billing record. Nothing is sold or shared with advertisers or analytics services.</p>
+    </li>
+  </ul>
+  <p>Apart from the Fill agent as described, none of these receive your private keys, your message plaintext, your private profile or your browsing history.</p>
+
+  <h2>3. Browser permissions</h2>
+  <ul>
+    <li><b>storage</b> — the local data listed in section 1.</li>
+    <li><b>offscreen</b> (Chrome; in Firefox, the add-on's background page) — runs the messaging peer in a hidden extension page, so messages arrive while no Beagle window is open.</li>
+    <li><b>notifications</b> — a notice when a message or friend request arrives and no Beagle page is in front.</li>
+    <li><b>sidePanel</b> (Chrome; in Firefox, the sidebar) — the Fill with Beagle panel beside the page. It opens only when you press Fill or Keep in Dock.</li>
+    <li><b>tabs</b> / <b>activeTab</b> / <b>scripting</b>, and a content script on web pages. They are used for three things:
+      <ul>
+        <li>the wallet provider a web page can ask to connect to;</li>
+        <li>"Share this page", which reads the title and address of the page you are on <em>only when you press it</em>;</li>
+        <li>Fill with Beagle, which reads the form and the visible text of the page you are on <em>only when you press Fill</em>. On F6S it also reads your own F6S member and company pages, as your browser shows them.</li>
+      </ul>
+      The extension does not read page content otherwise.</li>
+    <li><b>nativeMessaging</b> — an optional native helper for keychain storage of the wallet, only if you install it.</li>
+    <li><b>Host permissions</b> for the Beagle services in section 2 — so the extension can reach them from its own pages.</li>
+  </ul>
+
+  <h2>4. What we do not do</h2>
+  <ul>
+    <li>No analytics, crash reporting, advertising or tracking of any kind.</li>
+    <li>No account, no e-mail, no phone number.</li>
+    <li>No selling or sharing of data with third parties.</li>
+    <li>No remote code: everything the extension runs ships inside the package.</li>
+  </ul>
+
+  <h2>5. Your choices</h2>
+  <ul>
+    <li>Export or delete your identity and wallet at any time from Profile and from the wallet's settings.</li>
+    <li>Choose per field who may ever see your private profile (public, contacts, ask each time, never).</li>
+    <li>Mark any private-profile field <em>private</em> and it never leaves the device, Fill included.</li>
+    <li>Turn browser notifications off in your browser's extension settings.</li>
+  </ul>
+
+  <h2>6. Changes and contact</h2>
+  <p>Changes to this policy ship with a new version of the extension and are noted in its changelog.
+  Questions: <a href="https://beagle.chat">beagle.chat</a>.</p>
+
+  <footer>Beagle Chat · Decent Network</footer>
+</main>
+</body>
+</html>
