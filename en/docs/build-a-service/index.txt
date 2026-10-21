@@ -1,0 +1,282 @@
+2:I[7996,["101","static/chunks/101-e39febd9ce8cc3b6.js","493","static/chunks/app/%5Blocale%5D/docs/%5Bslug%5D/page-60b2d2fe9aaab20a.js"],""]
+3:I[7598,["101","static/chunks/101-e39febd9ce8cc3b6.js","493","static/chunks/app/%5Blocale%5D/docs/%5Bslug%5D/page-60b2d2fe9aaab20a.js"],"Image"]
+4:I[5093,["101","static/chunks/101-e39febd9ce8cc3b6.js","493","static/chunks/app/%5Blocale%5D/docs/%5Bslug%5D/page-60b2d2fe9aaab20a.js"],"CopyCode"]
+b:I[8342,[],""]
+e:I[3642,[],""]
+5:T40b,import { signIn } from "@decentnetwork/beagle-connect";
+
+document.querySelector("#signin").addEventListener("click", async () => {
+  // Open the window inside the click. After an await, popup blockers eat it.
+  const win = window.open("about:blank", "beagle-connect", "width=420,height=560");
+
+  // Single-use nonce from YOUR server. That is the whole replay defence.
+  const { nonce } = await fetch("/api/auth/nonce", { credentials: "include" }).then((r) => r.json());
+
+  // Finds the installed Beagle (127.0.0.1:8766) or falls back to app.beagle.chat.
+  const who = await signIn({ nonce, existingWindow: win });
+  // { userid, address, name, avatar, sig, nonce, uiOrigin }
+
+  const r = await fetch("/api/auth/beagle", {
+    method: "POST",
+    credentials: "include",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ ...who, origin: location.origin }),
+  });
+  const out = await r.json();
+  if (!r.ok) throw new Error(out.error);
+  render(out.user, out.permit);   // permit: { ok, code?, message? }
+});6:Tc10,import express from "express";
+import { randomBytes, createHmac, timingSafeEqual } from "node:crypto";
+import { verifyDetached, base58ToBytes } from "@decentnetwork/peer";
+
+const app = express();
+app.use(express.json());
+
+// Exact origins your pages are served from. Never app.beagle.chat:
+// the user signs YOUR origin.
+const ORIGINS = new Set(["https://example.com"]);
+const SECRET = process.env.SESSION_SECRET; // 32+ random bytes, not in git
+
+// ── nonce: single-use, two minutes ──────────────────────────────
+const nonces = new Map(); // nonce -> expiry. Use Redis if you run more than one process.
+
+app.get("/api/auth/nonce", (_req, res) => {
+  const now = Date.now();
+  for (const [k, exp] of nonces) if (exp < now) nonces.delete(k);
+  const nonce = randomBytes(18).toString("base64url");
+  nonces.set(nonce, now + 120_000);
+  res.json({ nonce });
+});
+
+function takeNonce(nonce) {
+  const exp = nonces.get(nonce);
+  nonces.delete(nonce);
+  return exp !== undefined && exp >= Date.now();
+}
+
+// ── the one primitive: XEdDSA over the Beagle key, NOT Ed25519 ──
+function verifyBeagle(prefix, userid, origin, salt, sigHex) {
+  try {
+    const msg = new TextEncoder().encode(`${prefix}\n${origin}\n${salt}`);
+    return verifyDetached(base58ToBytes(userid), msg, Uint8Array.from(Buffer.from(sigHex, "hex")));
+  } catch {
+    return false;
+  }
+}
+
+// ── session: an HMAC'd cookie keyed by the Beagle userid ────────
+const mac = (v) => createHmac("sha256", SECRET).update(v).digest("hex");
+
+function setSession(res, userid) {
+  res.setHeader("Set-Cookie",
+    `sid=${encodeURIComponent(`${userid}.${mac(userid)}`)}; HttpOnly; Secure; SameSite=Lax; Path=/; Max-Age=2592000`);
+}
+
+function sessionUser(req) {
+  const m = /(?:^|;\s*)sid=([^;]+)/.exec(req.headers.cookie || "");
+  if (!m) return null;
+  const v = decodeURIComponent(m[1]);
+  const i = v.lastIndexOf(".");
+  const userid = v.slice(0, i);
+  const got = Buffer.from(v.slice(i + 1));
+  const want = Buffer.from(mac(userid));
+  return got.length === want.length && timingSafeEqual(got, want) ? userid : null;
+}
+
+// ── sign up / sign in: the same route ───────────────────────────
+app.post("/api/auth/beagle", async (req, res) => {
+  const { userid, nonce, sig, origin } = req.body ?? {};
+  if (!userid || !nonce || !sig || !origin) return res.status(400).json({ error: "missing fields" });
+  if (!ORIGINS.has(origin)) return res.status(400).json({ error: "origin not allowed" });
+  if (!takeNonce(nonce)) return res.status(401).json({ error: "bad or expired nonce" });
+  if (!verifyBeagle("decent-auth", userid, origin, nonce, sig))
+    return res.status(401).json({ error: "signature did not verify" });
+
+  const denied = await deniedReason(userid);
+  if (denied) return res.status(403).json({ error: denied, code: "denied" });
+
+  const user = await rememberUser(req, userid, req.body, "popup");
+  setSession(res, userid);
+  res.json({ user, permit: await permitFor(userid) });
+});7:T530,// Opened from Beagle's Apps tab: already signed in, never ask again.
+// No nonce you issued, so YOU bound freshness and refuse a repeat.
+const usedLaunch = new Map(); // sig -> expiry
+
+app.post("/api/auth/beagle-launch", async (req, res) => {
+  const { userid, sig, ts } = req.body ?? {};
+  // The Origin HEADER, not the body: with no nonce to bind, a body origin
+  // would let an assertion minted for one of your sites be spent at another.
+  const origin = req.get("origin");
+  if (!userid || !sig || !Number.isFinite(Number(ts))) return res.status(400).json({ error: "missing fields" });
+  if (!ORIGINS.has(origin)) return res.status(400).json({ error: "origin not allowed" });
+  if (Math.abs(Date.now() - Number(ts)) > 120_000) return res.status(401).json({ error: "launch assertion expired" });
+  if (!verifyBeagle("decent-launch", userid, origin, ts, sig))
+    return res.status(401).json({ error: "signature did not verify" });
+  const now = Date.now();
+  for (const [k, exp] of usedLaunch) if (exp < now) usedLaunch.delete(k);
+  if (usedLaunch.has(sig)) return res.status(401).json({ error: "launch assertion already used" });
+  usedLaunch.set(sig, now + 240_000);
+
+  const user = await rememberUser(req, userid, req.body, "launch");
+  setSession(res, userid);
+  res.json({ user, permit: await permitFor(userid) });
+});8:T58a,-- The account key is the Beagle userid. No password column, no key column.
+CREATE TABLE users (
+  userid        TEXT PRIMARY KEY,          -- Beagle userid (base58 X25519)
+  name          TEXT,                      -- display only
+  avatar_url    TEXT,                      -- display only
+  carrier_addr  TEXT,                      -- where to reach them: message, add friend, reward
+  beagles_name  TEXT,                      -- foo.beagles.eth, when they registered one
+  first_seen_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  last_seen_at  TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+-- Every sign-in: which door, from where. The trail you reward or refuse on.
+CREATE TABLE auth_events (
+  id         BIGSERIAL PRIMARY KEY,
+  at         TIMESTAMPTZ NOT NULL DEFAULT now(),
+  userid     TEXT NOT NULL,
+  door       TEXT NOT NULL,                -- popup | launch
+  origin     TEXT,
+  ip         TEXT,
+  user_agent TEXT
+);
+
+-- What they did in YOUR service. One row per action you care about.
+CREATE TABLE activity (
+  id     BIGSERIAL PRIMARY KEY,
+  at     TIMESTAMPTZ NOT NULL DEFAULT now(),
+  userid TEXT NOT NULL,
+  kind   TEXT NOT NULL,                    -- e.g. joined, viewed_signal, posted
+  detail JSONB
+);
+
+-- Refusing service is a row, written before you need it.
+CREATE TABLE denials (
+  userid    TEXT PRIMARY KEY,
+  reason    TEXT NOT NULL,
+  by_userid TEXT,
+  at        TIMESTAMPTZ NOT NULL DEFAULT now()
+);9:T955,import pg from "pg";
+const db = new pg.Pool({ connectionString: process.env.DATABASE_URL });
+
+const GATEWAY = "https://ens-gateway.beaglechat.workers.dev";
+
+// The person's public beagles.eth record, or null. Read-only, no key needed.
+async function beaglesRecord(userid) {
+  try {
+    const r = await fetch(`${GATEWAY}/getAddress/${encodeURIComponent(userid)}`,
+      { signal: AbortSignal.timeout(2500) });
+    if (!r.ok) return null;
+    const rec = await r.json();
+    // It must be THIS person's record: written by this key, or naming it as
+    // carrierUserId (names registered from the mobile wallet are owned by the wallet).
+    return rec && (rec.owner === userid || rec.texts?.carrierUserId === userid) ? rec : null;
+  } catch {
+    return null;
+  }
+}
+
+const clip = (v, n) => (typeof v === "string" && v.trim() ? v.trim().slice(0, n) : null);
+
+async function rememberUser(req, userid, body, door) {
+  const rec = await beaglesRecord(userid);
+  // The published record wins; the popup's name/avatar/address are unsigned hints.
+  const name = clip(rec?.texts?.displayName, 64) ?? clip(body.name, 64);
+  const avatar = clip(rec?.texts?.avatar, 512) ?? clip(body.avatar, 512);
+  const carrier = clip(rec?.texts?.carrierAddress, 64) ?? clip(body.address, 64);
+
+  const { rows } = await db.query(
+    `INSERT INTO users (userid, name, avatar_url, carrier_addr, beagles_name)
+     VALUES ($1, $2, $3, $4, $5)
+     ON CONFLICT (userid) DO UPDATE SET
+       name         = COALESCE(EXCLUDED.name, users.name),
+       avatar_url   = COALESCE(EXCLUDED.avatar_url, users.avatar_url),
+       carrier_addr = COALESCE(EXCLUDED.carrier_addr, users.carrier_addr),
+       beagles_name = COALESCE(EXCLUDED.beagles_name, users.beagles_name),
+       last_seen_at = now()
+     RETURNING *`,
+    [userid, name, avatar, carrier, rec?.name ?? null],
+  );
+  await db.query(
+    `INSERT INTO auth_events (userid, door, origin, ip, user_agent) VALUES ($1, $2, $3, $4, $5)`,
+    [userid, door, req.get("origin") ?? null, req.ip, clip(req.get("user-agent"), 256)],
+  );
+  return rows[0];
+}
+
+async function deniedReason(userid) {
+  const { rows } = await db.query(`SELECT reason FROM denials WHERE userid = $1`, [userid]);
+  return rows[0]?.reason ?? null;
+}
+
+const track = (userid, kind, detail = null) =>
+  db.query(`INSERT INTO activity (userid, kind, detail) VALUES ($1, $2, $3)`, [userid, kind, detail]);a:Ta57,import { verifyRecordWallet } from "@decentnetwork/beagle-ui/wallet-proof";
+
+const RPC = process.env.SOLANA_RPC || "https://api.mainnet-beta.solana.com";
+const MINT = "YourTokenMint11111111111111111111111111111";  // your SPL token mint
+const THRESHOLD = 1000;                                     // whole tokens
+
+// Sum of one SPL token across every token account the wallet owns.
+async function splBalance(owner, mint) {
+  const r = await fetch(RPC, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    signal: AbortSignal.timeout(3000),
+    body: JSON.stringify({
+      jsonrpc: "2.0", id: 1, method: "getTokenAccountsByOwner",
+      params: [owner, { mint }, { encoding: "jsonParsed" }],
+    }),
+  });
+  const { result, error } = await r.json();
+  if (error) throw new Error(error.message);
+  return result.value.reduce((sum, a) => sum + (a.account.data.parsed.info.tokenAmount.uiAmount ?? 0), 0);
+}
+
+const yes = new Map(); // userid -> time of the last yes
+
+// { ok: true } | { ok: false, code, message } | { ok: null, code: "unavailable", message }
+async function permitFor(userid) {
+  const at = yes.get(userid);
+  if (at && Date.now() - at < 60_000) return { ok: true };
+
+  const rec = await beaglesRecord(userid);
+  const wallet = rec ? verifyRecordWallet(rec, "sol") : { ok: false };
+  if (!wallet.ok) {
+    return { ok: false, code: "no-wallet",
+      message: "Bind a Solana wallet in your Beagle profile (Profile > beagles.eth), then sign in again." };
+  }
+
+  let balance;
+  try {
+    balance = await splBalance(wallet.address, MINT);
+  } catch {
+    // The chain read failed. That is not a no: say so, and decide your policy.
+    return { ok: null, code: "unavailable", message: "Could not check your wallet right now. Try again in a minute." };
+  }
+  if (balance < THRESHOLD) {
+    return { ok: false, code: "below-threshold", message: `Holding ${THRESHOLD} tokens unlocks this.` };
+  }
+  yes.set(userid, Date.now()); // cache a yes briefly; never cache a no for long
+  return { ok: true };
+}
+
+// Put it in front of anything that needs the permit.
+async function requirePermit(req, res, next) {
+  const userid = sessionUser(req);
+  if (!userid) return res.status(401).json({ error: "Sign in with Beagle first" });
+  if (await deniedReason(userid)) return res.status(403).json({ error: "denied", code: "denied" });
+  const p = await permitFor(userid);
+  if (p.ok !== true) return res.status(p.ok === null ? 503 : 403).json(p);
+  req.userid = userid;
+  next();
+}
+
+app.get("/api/signals", requirePermit, async (req, res) => {
+  await track(req.userid, "viewed_signals");
+  res.json(await latestSignals());
+});c:["locale","en","d"]
+d:["slug","build-a-service","d"]
+0:["dV0M_Gl3pvOYbFOEX71dR",[[["",{"children":[["locale","en","d"],{"children":["docs",{"children":[["slug","build-a-service","d"],{"children":["__PAGE__?{\"locale\":\"en\",\"slug\":\"build-a-service\"}",{}]}]}]}]},"$undefined","$undefined",true],["",{"children":[["locale","en","d"],{"children":["docs",{"children":[["slug","build-a-service","d"],{"children":["__PAGE__",{},[["$L1",[["$","nav",null,{"className":"bc-nav","children":[["$","$L2",null,{"href":"/en","className":"brand","children":[["$","$L3",null,{"src":"/logo.png","alt":"Beagle","width":26,"height":26,"priority":true}],["$","span",null,{"children":["beagle",["$","span",null,{"className":"mono","style":{"color":"var(--muted)","fontWeight":400},"children":".chat"}]]}]]}],["$","div",null,{"className":"links","children":[["$","$L2","app",{"href":"/en/app","style":{"color":"$undefined"},"children":"App"}],["$","$L2","desktop",{"href":"/en/desktop","style":{"color":"$undefined"},"children":"Desktop + CLI"}],["$","$L2","extension",{"href":"/en/extension","style":{"color":"$undefined"},"children":"Extension"}],["$","$L2","openclaw",{"href":"/en/openclaw","style":{"color":"$undefined"},"children":"OpenClaw"}],["$","$L2","agents",{"href":"/en/agents","style":{"color":"$undefined"},"children":"Agents"}],["$","$L2","about",{"href":"/en/about","style":{"color":"$undefined"},"children":"About"}]]}],["$","div",null,{"className":"right","children":[["$","$L2",null,{"href":"/en/docs","style":{"color":"var(--accent)"},"children":"Docs"}],["$","span",null,{"className":"locale","children":[["$","$L2",null,{"href":"/en/docs/build-a-service","className":"active","children":"EN"}]," · ",["$","$L2",null,{"href":"/zh/docs/build-a-service","className":"","children":"中"}]]}],["$","$L2",null,{"href":"/en/start","className":"cta","children":"Start here"}]]}]]}],["$","div",null,{"className":"docs-shell","children":[["$","aside",null,{"className":"docs-sidebar","children":[["$","$L2",null,{"className":"docs-sidebar-home","href":"/en/docs","children":"Beagle Docs"}],[["$","div","start",{"className":"docs-sidebar-group","children":[["$","strong",null,{"children":"Start here"}],[["$","$L2","overview",{"className":"","href":"/en/docs/overview","children":"What Beagle is"}],["$","$L2","use-cases",{"className":"","href":"/en/docs/use-cases","children":"Application scenarios"}]]]}],["$","div","install",{"className":"docs-sidebar-group","children":[["$","strong",null,{"children":"Install"}],[["$","$L2","install-desktop",{"className":"","href":"/en/docs/install-desktop","children":"Install the desktop app"}],["$","$L2","update-beagle",{"className":"","href":"/en/docs/update-beagle","children":"Updating Beagle and AgentNet"}],["$","$L2","install-macos",{"className":"","href":"/en/docs/install-macos","children":"Install the CLI on macOS"}],["$","$L2","install-windows",{"className":"","href":"/en/docs/install-windows","children":"Install the CLI on Windows (WSL2)"}],["$","$L2","install-windows-native",{"className":"","href":"/en/docs/install-windows-native","children":"Install the CLI on Windows (Native, no WSL)"}],["$","$L2","install-linux",{"className":"","href":"/en/docs/install-linux","children":"Install the CLI on Linux"}]]]}],["$","div","use",{"className":"docs-sidebar-group","children":[["$","strong",null,{"children":"Use"}],[["$","$L2","using-beagle",{"className":"","href":"/en/docs/using-beagle","children":"Identity, friends, messages, and files"}],["$","$L2","private-network",{"className":"","href":"/en/docs/private-network","children":"Connect machines and private services"}]]]}],["$","div","build",{"className":"docs-sidebar-group","children":[["$","strong",null,{"children":"Agents & builders"}],[["$","$L2","agentnet",{"className":"","href":"/en/docs/agentnet","children":"AgentNet for agents and automation"}],["$","$L2","openclaw",{"className":"","href":"/en/docs/openclaw","children":"Connect an OpenClaw agent"}],["$","$L2","agent-mesh",{"className":"","href":"/en/docs/agent-mesh","children":"Agent Mesh: connect two AI agents"}],["$","$L2","sign-in-with-beagle",{"className":"","href":"/en/docs/sign-in-with-beagle","children":"Sign in with Beagle"}],["$","$L2","beagle-connect",{"className":"","href":"/en/docs/beagle-connect","children":"Add Sign in with Beagle to your app"}],["$","$L2","build-a-service",{"className":"active","href":"/en/docs/build-a-service","children":"Build a service: sign-up, users, and wallet permits"}]]]}],["$","div","learn",{"className":"docs-sidebar-group","children":[["$","strong",null,{"children":"Vision & protocol"}],[["$","$L2","vision",{"className":"","href":"/en/docs/vision","children":"A network people and agents can own"}],["$","$L2","whitepaper",{"className":"","href":"/en/docs/whitepaper","children":"Decent Network whitepaper"}]]]}]]]}],["$","main",null,{"className":"docs-article","children":[["$","div",null,{"className":"docs-breadcrumb","children":[["$","$L2",null,{"href":"/en/docs","children":"All docs"}],["$","span",null,{"children":"/"}],["$","span",null,{"children":"Build a service: sign-up, users, and wallet permits"}]]}],["$","div",null,{"className":"eyebrow","children":"IDENTITY & SERVICES"}],["$","h1",null,{"children":"Build a service: sign-up, users, and wallet permits"}],["$","p",null,{"className":"docs-summary","children":"The whole server side for a service on Beagle identity, with code you can paste: sign people up with Sign in with Beagle, keep your users in your own database, and grant access from the wallet assets they bound in their Beagle profile. No password, no wallet connect on your site."}],["$","span",null,{"className":"docs-updated","children":"October 2026"}],[["$","section","shape",{"id":"shape","children":[["$","h2",null,{"children":"What you are building"}],[["$","p",null,{"children":["Three parts, in this order. Each one is a few dozen lines on your server, and the user never gives you a password, a seed phrase, or a key."]}],["$","div",null,{"className":"docs-table-wrap","children":["$","table",null,{"children":[["$","thead",null,{"children":["$","tr",null,{"children":[["$","th","Part",{"children":"Part"}],["$","th","What the user does",{"children":"What the user does"}],["$","th","What your server does",{"children":"What your server does"}]]}]}],["$","tbody",null,{"children":[["$","tr","0",{"children":[["$","td","0",{"children":[["$","strong","0",{"children":"1. Sign up"}]]}],["$","td","1",{"children":["Clicks Sign in with Beagle, approves once in Beagle"]}],["$","td","2",{"children":["Issues a nonce, verifies the signature, sets a session"]}]]}],["$","tr","1",{"children":[["$","td","0",{"children":[["$","strong","0",{"children":"2. Users"}]]}],["$","td","1",{"children":["Nothing"]}],["$","td","2",{"children":["Upserts the user by Beagle userid, logs the sign-in and what they do"]}]]}],["$","tr","2",{"children":[["$","td","0",{"children":[["$","strong","0",{"children":"3. Permit"}]]}],["$","td","1",{"children":["Binds a wallet once, in their Beagle profile"]}],["$","td","2",{"children":["Reads the bound wallet from their public record, checks the proof, checks the assets"]}]]}]]}]]}]}],["$","div",null,{"className":"docs-note","children":[["$","strong",null,{"children":"Why not \"connect wallet\" on your site"}],["$","p",null,{"children":["A wallet connect on every site means every site runs its own wallet flow, its own binding table, and asks the user to sign again. With Beagle the user binds a wallet once, the wallet signs a message naming their Beagle identity, and that proof sits in their public beagles.eth record. Any service reads it; none of them has to ask."]}]]}],["$","p",null,{"children":["Beagle Meet (snoopy.fi.chat, goji.fi.chat) runs this design in production: sign-in, user records, and wallet-based gates on rooms. The code below is written fresh for your service; you do not install or run Meet."]}],["$","$L4",null,{"className":"docs-code","code":"npm install express pg @decentnetwork/beagle-connect @decentnetwork/beagle-ui\n# beagle-connect brings @decentnetwork/peer (server-side signature check).\n# beagle-ui is only used for its React-free subpath @decentnetwork/beagle-ui/wallet-proof."}]]]}],["$","section","sign-up",{"id":"sign-up","children":[["$","h2",null,{"children":"1. Sign up with Sign in with Beagle"}],[["$","p",null,{"children":["There is no separate sign-up. The first verified sign-in creates the user; every later one updates them. The background (doors, the three identities) is in ",["$","a","0",{"href":"https://beagle.chat/en/docs/beagle-connect/","target":"_blank","rel":"noopener noreferrer","children":"Add Sign in with Beagle to your app"}],"."]}],["$","p",null,{"children":[["$","strong","0",{"children":"Browser."}]," One button."]}],["$","$L4",null,{"className":"docs-code","code":"$5"}],["$","p",null,{"children":[["$","strong","0",{"children":"Server."}]," Nonce, verify, session, in one file. ",["$","code","1",{"children":"verifyDetached"}]," from ",["$","code","2",{"children":"@decentnetwork/peer"}]," is XEdDSA: a Beagle userid is an X25519 public key, so Ed25519 libraries such as ",["$","code","3",{"children":"nacl.sign"}]," will always say no."]}],["$","$L4",null,{"className":"docs-code","code":"$6"}],["$","p",null,{"children":[["$","strong","0",{"children":"Opened from inside Beagle."}]," When your service is listed in Beagle's Apps tab, the user arrives already signed in. Read the fragment on page load and post it to a second route."]}],["$","$L4",null,{"className":"docs-code","code":"import { readLaunch } from \"@decentnetwork/beagle-connect\";\n\n// On page load. null = nothing in the fragment. Throws on a bad or stale one:\n// show that, do not treat it as signed out.\nconst who = await readLaunch();\nif (who) {\n  await fetch(\"/api/auth/beagle-launch\", {\n    method: \"POST\",\n    credentials: \"include\",\n    headers: { \"Content-Type\": \"application/json\" },\n    body: JSON.stringify(who),\n  });\n}"}],["$","$L4",null,{"className":"docs-code","code":"$7"}],["$","div",null,{"className":"docs-note","children":[["$","strong",null,{"children":"The mistakes that break this"}],["$","p",null,{"children":["Verifying against a hostname instead of the full origin (",["$","code","0",{"children":"https://example.com"}],"). Reusing a nonce, or making one on the client. Accepting ",["$","code","1",{"children":"decent-launch"}]," where you expect ",["$","code","2",{"children":"decent-auth"}],". Treating ",["$","code","3",{"children":"name"}],", ",["$","code","4",{"children":"avatar"}]," or ",["$","code","5",{"children":"address"}]," from the popup as proof: they are not signed."]}]]}]]]}],["$","section","users",{"id":"users","children":[["$","h2",null,{"children":"2. Keep your users in your own backend"}],[["$","p",null,{"children":["The Beagle userid is the account key. Store what the person showed you and what they did with you. Their keys stay in Beagle; you never see them. This record is what lets you reward people, reach them later, and refuse service."]}],["$","$L4",null,{"className":"docs-code","code":"$8"}],["$","p",null,{"children":["Fill the profile from the person's public beagles.eth record when they have one. It is signed and published, unlike the hints in the popup."]}],["$","$L4",null,{"className":"docs-code","code":"$9"}],["$","div",null,{"className":"docs-table-wrap","children":["$","table",null,{"children":[["$","thead",null,{"children":["$","tr",null,{"children":[["$","th","Store",{"children":"Store"}],["$","th","Never store",{"children":"Never store"}]]}]}],["$","tbody",null,{"children":[["$","tr","0",{"children":[["$","td","0",{"children":["userid, name, avatar, Carrier address, beagles.eth name"]}],["$","td","1",{"children":["Passwords: there are none"]}]]}],["$","tr","1",{"children":[["$","td","0",{"children":["Each sign-in: door, origin, IP, time"]}],["$","td","1",{"children":["Private keys, seed phrases, wallet secrets"]}]]}],["$","tr","2",{"children":[["$","td","0",{"children":["What they did: joined, viewed, bought, posted"]}],["$","td","1",{"children":["The popup's name/avatar as identity"]}]]}],["$","tr","3",{"children":[["$","td","0",{"children":["Denials, with a reason and who decided"]}],["$","td","1",{"children":""}]]}]]}]]}]}],["$","div",null,{"className":"docs-note","children":[["$","strong",null,{"children":"The Carrier address is how you reach them"}],["$","p",null,{"children":["Keep ",["$","code","0",{"children":"carrier_addr"}],". With it your service, or its agent, can message the person, send a friend request, or deliver a reward over the Beagle network, without holding anything of theirs."]}]]}]]]}],["$","section","permit",{"id":"permit","children":[["$","h2",null,{"children":"3. Grant access from wallet assets"}],[["$","p",null,{"children":["The user binds a wallet once in Beagle: ",["$","strong","0",{"children":"Profile > beagles.eth > bind Solana / Ethereum"}],". Their wallet (Phantom, MetaMask) signs a message naming their Beagle userid, chain, address and time, and Beagle writes the address and that signature into their public record. You read it with no key and no extra prompt."]}],["$","$L4",null,{"className":"docs-code","code":"GET https://ens-gateway.beaglechat.workers.dev/getAddress/<userid>\n\n{\n  \"name\": \"alice.beagles.eth\",\n  \"owner\": \"<userid>\",\n  \"addresses\": { \"501\": \"<solana address>\" },          // 60 = ETH, 501 = SOL\n  \"texts\": {\n    \"displayName\": \"Alice\",\n    \"avatar\": \"https://…\",\n    \"carrierAddress\": \"<52-char Carrier address>\",\n    \"carrierUserId\": \"<userid>\",\n    \"proof.sol\": \"{\\\"v\\\":1,\\\"msg\\\":\\\"…userid: <userid>\\\\nchain: sol\\\\naddress: …\\\\nissued: …\\\",\\\"sig\\\":\\\"…\\\"}\"\n  }\n}"}],["$","p",null,{"children":[["$","code","0",{"children":"verifyRecordWallet(record, \"sol\")"}]," checks that signature offline and gives you the address, or tells you why not. It also accepts a name registered from the Beagle mobile wallet, where the wallet itself owns the record. Then check the assets on that address your usual way."]}],["$","$L4",null,{"className":"docs-code","code":"$a"}],["$","p",null,{"children":[["$","strong","0",{"children":"Ethereum"}]," is the same record and the same call with ",["$","code","1",{"children":"\"eth\""}],"."]}],["$","$L4",null,{"className":"docs-code","code":"// Same record, other chain. Proof: EIP-191 personal_sign by that address.\nconst w = verifyRecordWallet(rec, \"eth\");   // { ok, address: \"0x…\", via }\n// ERC-20 balanceOf(address) through eth_call on your RPC:\nconst data = \"0x70a08231\" + w.address.slice(2).toLowerCase().padStart(64, \"0\");\n// POST { jsonrpc: \"2.0\", id: 1, method: \"eth_call\", params: [{ to: TOKEN, data }, \"latest\"] }\n// → hex balance in the token's smallest unit; divide by 10 ** decimals."}],["$","div",null,{"className":"docs-note","children":[["$","strong",null,{"children":"A failed chain read is not a no"}],["$","p",null,{"children":["When the RPC times out, return \"could not check\" (",["$","code","0",{"children":"ok: null"}],", HTTP 503), never \"you do not qualify\". Whether to let people in during an outage is your policy; decide it on purpose. Cache a yes for about a minute; do not cache a no for long, or someone who just bought in waits for nothing."]}]]}],["$","div",null,{"className":"docs-note","children":[["$","strong",null,{"children":"The proof says who owns the wallet, not what is in it"}],["$","p",null,{"children":["The signature proves this Beagle identity controls this address. Balances change every block, so read them at the moment you grant access, and again when the permit expires."]}]]}]]]}],["$","section","checklist",{"id":"checklist","children":[["$","h2",null,{"children":"Before you ship"}],[["$","div",null,{"className":"docs-steps","children":[["$","div","Nonce from your server, single-use, about two minutes",{"children":[["$","span",null,{"children":"01"}],["$","div",null,{"children":[["$","strong",null,{"children":"Nonce from your server, single-use, about two minutes"}],["$","p",null,{"children":["Use Redis or your database if more than one process serves requests."]}],"$undefined"]}]]}],["$","div","ORIGINS holds your exact origins",{"children":[["$","span",null,{"children":"02"}],["$","div",null,{"children":[["$","strong",null,{"children":"ORIGINS holds your exact origins"}],["$","p",null,{"children":["Scheme and host, as the browser reports ",["$","code","0",{"children":"location.origin"}],"."]}],"$undefined"]}]]}],["$","div","SESSION_SECRET is random and outside git",{"children":[["$","span",null,{"children":"03"}],["$","div",null,{"children":[["$","strong",null,{"children":"SESSION_SECRET is random and outside git"}],["$","p",null,{"children":["Rotating it signs everyone out, which is the point."]}],"$undefined"]}]]}],["$","div","Users table keyed by Beagle userid",{"children":[["$","span",null,{"children":"04"}],["$","div",null,{"children":[["$","strong",null,{"children":"Users table keyed by Beagle userid"}],["$","p",null,{"children":["Profile from the beagles.eth record when there is one; popup fields only as a fallback."]}],"$undefined"]}]]}],["$","div","A deny path exists before launch",{"children":[["$","span",null,{"children":"05"}],["$","div",null,{"children":[["$","strong",null,{"children":"A deny path exists before launch"}],["$","p",null,{"children":["A row in ",["$","code","0",{"children":"denials"}]," stops sign-in and every permit."]}],"$undefined"]}]]}],["$","div","Permit reads the bound wallet, never a connect",{"children":[["$","span",null,{"children":"06"}],["$","div",null,{"children":[["$","strong",null,{"children":"Permit reads the bound wallet, never a connect"}],["$","p",null,{"children":["No wallet bound means one clear sentence telling the user where to bind it in Beagle."]}],"$undefined"]}]]}],["$","div","Could-not-check is its own answer",{"children":[["$","span",null,{"children":"07"}],["$","div",null,{"children":[["$","strong",null,{"children":"Could-not-check is its own answer"}],["$","p",null,{"children":["503 with a retry message, not 403."]}],"$undefined"]}]]}]]}]]]}]],["$","$L2",null,{"className":"docs-next","href":"/en/docs/overview","children":[["$","span",null,{"children":"Next guide"}],["$","strong",null,{"children":["What Beagle is"," →"]}]]}]]}],["$","aside",null,{"className":"docs-toc","children":[["$","strong",null,{"children":"On this page"}],[["$","a","shape",{"href":"#shape","children":"What you are building"}],["$","a","sign-up",{"href":"#sign-up","children":"1. Sign up with Sign in with Beagle"}],["$","a","users",{"href":"#users","children":"2. Keep your users in your own backend"}],["$","a","permit",{"href":"#permit","children":"3. Grant access from wallet assets"}],["$","a","checklist",{"href":"#checklist","children":"Before you ship"}]]]}]]}],["$","footer",null,{"className":"bc-footer","children":[["$","div",null,{"children":[["$","div",null,{"className":"brand","children":[["$","$L3",null,{"src":"/logo.png","alt":"Beagle","width":28,"height":28}],["$","span",null,{"style":{"fontWeight":600,"fontSize":17,"letterSpacing":"-0.01em"},"children":["beagle",["$","span",null,{"className":"mono","style":{"color":"var(--muted)","fontWeight":400},"children":".chat"}]]}]]}],["$","p",null,{"style":{"marginTop":14,"fontSize":13,"color":"var(--muted)","maxWidth":260},"children":"People and AI. Let’s talk. Let’s build. Your identity and data stay yours; the network is open to build on."}]]}],["$","div",null,{"children":[["$","h5",null,{"children":"Product"}],["$","ul",null,{"children":[["$","li","Beagle App",{"children":["$","a",null,{"href":"/en/app","target":"$undefined","rel":"$undefined","children":"Beagle App"}]}],["$","li","Desktop + CLI",{"children":["$","a",null,{"href":"/en/desktop","target":"$undefined","rel":"$undefined","children":"Desktop + CLI"}]}],["$","li","OpenClaw Channel",{"children":["$","a",null,{"href":"/en/openclaw","target":"$undefined","rel":"$undefined","children":"OpenClaw Channel"}]}],["$","li","Agents",{"children":["$","a",null,{"href":"/en/agents","target":"$undefined","rel":"$undefined","children":"Agents"}]}],["$","li","Browser extension",{"children":["$","a",null,{"href":"/en/extension","target":"$undefined","rel":"$undefined","children":"Browser extension"}]}]]}]]}],["$","div",null,{"children":[["$","h5",null,{"children":"Docs"}],["$","ul",null,{"children":[["$","li","Whitepaper",{"children":["$","a",null,{"href":"/en/docs/whitepaper","target":"$undefined","rel":"$undefined","children":"Whitepaper"}]}],["$","li","Guides",{"children":["$","a",null,{"href":"/en/docs","target":"$undefined","rel":"$undefined","children":"Guides"}]}],["$","li","GitHub",{"children":["$","a",null,{"href":"https://github.com/0xli","target":"_blank","rel":"noreferrer","children":"GitHub"}]}],["$","li","decent.network ↗",{"children":["$","a",null,{"href":"https://decent.network","target":"_blank","rel":"noreferrer","children":"decent.network ↗"}]}]]}]]}],["$","div",null,{"children":[["$","h5",null,{"children":"Community"}],["$","ul",null,{"children":[["$","li","Discord",{"children":["$","a",null,{"href":"https://discord.gg/WXTtCF8fGN","target":"_blank","rel":"noreferrer","children":"Discord"}]}],["$","li","Telegram",{"children":["$","a",null,{"href":"https://t.me/beagle_chat","target":"_blank","rel":"noreferrer","children":"Telegram"}]}],["$","li","X",{"children":["$","a",null,{"href":"https://twitter.com/beagle0x","target":"_blank","rel":"noreferrer","children":"X"}]}],["$","li","hi@beagle.chat",{"children":["$","a",null,{"href":"mailto:hi@beagle.chat","target":"_blank","rel":"noreferrer","children":"hi@beagle.chat"}]}]]}]]}],["$","div",null,{"className":"colophon","children":[["$","span",null,{"className":"copy","children":"© 2026 Beagle Chat — All rights reserved."}],["$","span",null,{"className":"copy","children":[["$","$L2",null,{"href":"/en/privacy","children":"Privacy"}]," · ",["$","$L2",null,{"href":"/en","children":"EN"}]," · ",["$","$L2",null,{"href":"/zh","children":"中文"}]]}]]}]]}]],null],null],null]},[null,["$","$Lb",null,{"parallelRouterKey":"children","segmentPath":["children","$c","children","docs","children","$d","children"],"error":"$undefined","errorStyles":"$undefined","errorScripts":"$undefined","template":["$","$Le",null,{}],"templateStyles":"$undefined","templateScripts":"$undefined","notFound":"$undefined","notFoundStyles":"$undefined"}]],null]},[null,["$","$Lb",null,{"parallelRouterKey":"children","segmentPath":["children","$c","children","docs","children"],"error":"$undefined","errorStyles":"$undefined","errorScripts":"$undefined","template":["$","$Le",null,{}],"templateStyles":"$undefined","templateScripts":"$undefined","notFound":"$undefined","notFoundStyles":"$undefined"}]],null]},[[null,["$","$Lb",null,{"parallelRouterKey":"children","segmentPath":["children","$c","children"],"error":"$undefined","errorStyles":"$undefined","errorScripts":"$undefined","template":["$","$Le",null,{}],"templateStyles":"$undefined","templateScripts":"$undefined","notFound":"$undefined","notFoundStyles":"$undefined"}]],null],null]},[[[["$","link","0",{"rel":"stylesheet","href":"/_next/static/css/363f0718fa1a2a17.css","precedence":"next","crossOrigin":"$undefined"}]],["$","html",null,{"lang":"en","children":["$","body",null,{"children":["$","$Lb",null,{"parallelRouterKey":"children","segmentPath":["children"],"error":"$undefined","errorStyles":"$undefined","errorScripts":"$undefined","template":["$","$Le",null,{}],"templateStyles":"$undefined","templateScripts":"$undefined","notFound":[["$","title",null,{"children":"404: This page could not be found."}],["$","div",null,{"style":{"fontFamily":"system-ui,\"Segoe UI\",Roboto,Helvetica,Arial,sans-serif,\"Apple Color Emoji\",\"Segoe UI Emoji\"","height":"100vh","textAlign":"center","display":"flex","flexDirection":"column","alignItems":"center","justifyContent":"center"},"children":["$","div",null,{"children":[["$","style",null,{"dangerouslySetInnerHTML":{"__html":"body{color:#000;background:#fff;margin:0}.next-error-h1{border-right:1px solid rgba(0,0,0,.3)}@media (prefers-color-scheme:dark){body{color:#fff;background:#000}.next-error-h1{border-right:1px solid rgba(255,255,255,.3)}}"}}],["$","h1",null,{"className":"next-error-h1","style":{"display":"inline-block","margin":"0 20px 0 0","padding":"0 23px 0 0","fontSize":24,"fontWeight":500,"verticalAlign":"top","lineHeight":"49px"},"children":"404"}],["$","div",null,{"style":{"display":"inline-block"},"children":["$","h2",null,{"style":{"fontSize":14,"fontWeight":400,"lineHeight":"49px","margin":0},"children":"This page could not be found."}]}]]}]}]],"notFoundStyles":[]}]}]}]],null],null],["$Lf",null]]]]
+f:[["$","meta","0",{"name":"viewport","content":"width=device-width, initial-scale=1"}],["$","meta","1",{"charSet":"utf-8"}],["$","title","2",{"children":"Beagle — People and AI. Let’s talk. Let’s build."}],["$","meta","3",{"name":"description","content":"An open network for social and real-time messaging between people, AI, and services. Create and hold your identity and data on your own device. Use Beagle or build your own app."}],["$","meta","4",{"property":"og:title","content":"Beagle — People and AI. Let’s talk. Let’s build."}],["$","meta","5",{"property":"og:description","content":"An open network for social and real-time messaging between people, AI, and services. Create and hold your identity and data on your own device. Use Beagle or build your own app."}],["$","meta","6",{"property":"og:image","content":"https://beagle.chat/og.png"}],["$","meta","7",{"property":"og:image:width","content":"1200"}],["$","meta","8",{"property":"og:image:height","content":"630"}],["$","meta","9",{"property":"og:image:alt","content":"Beagle desktop"}],["$","meta","10",{"name":"twitter:card","content":"summary_large_image"}],["$","meta","11",{"name":"twitter:title","content":"Beagle — People and AI. Let’s talk. Let’s build."}],["$","meta","12",{"name":"twitter:description","content":"An open network for social and real-time messaging between people, AI, and services. Create and hold your identity and data on your own device. Use Beagle or build your own app."}],["$","meta","13",{"name":"twitter:image","content":"https://beagle.chat/og.png"}],["$","link","14",{"rel":"icon","href":"/logo.png"}]]
+1:null
