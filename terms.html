@@ -1,0 +1,96 @@
+<!doctype html>
+<!-- Revised 2026-11-16 per Decent HQ's review. Operator named by product name only, per Wei's decision. Draft for Wei's review before publishing. -->
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Terms of Service — Beagle Chat</title>
+  <style>
+    :root { color-scheme: light; }
+    * { box-sizing: border-box; }
+    body { margin: 0; background: #f7f7f5; color: #17202a; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; line-height: 1.65; }
+    main { max-width: 820px; margin: 0 auto; padding: 48px 22px 64px; }
+    h1 { font-size: 2rem; line-height: 1.2; margin: 0 0 10px; }
+    h2 { font-size: 1.25rem; line-height: 1.35; margin: 2rem 0 0.6rem; }
+    p, li { font-size: 1rem; }
+    ul { padding-left: 1.3rem; }
+    a { color: #075985; }
+    .meta { color: #5b6770; margin-bottom: 2rem; }
+    footer { border-top: 1px solid #ddd; margin-top: 3rem; padding-top: 1rem; color: #5b6770; font-size: .92rem; }
+  </style>
+</head>
+<body>
+<main>
+  <h1>Terms of Service</h1>
+  <p class="meta">Beagle Chat — <a href="https://beagle.chat/">beagle.chat</a><br>Effective date: November 16, 2026</p>
+
+  <h2>1. Acceptance of these Terms</h2>
+  <p>These Terms of Service (&ldquo;Terms&rdquo;) govern your access to and use of Beagle Chat (&ldquo;Beagle&rdquo;, the &ldquo;Service&rdquo;). By using the Service, you agree to these Terms. If you do not agree, do not use the Service.</p>
+
+  <h2>2. The Service</h2>
+  <p>Beagle is a messenger, a private virtual network, and an agent communication layer in one. People, AI agents, and services reach each other through real-time messaging, groups, file exchange, and end-to-end encrypted voice and video calls, over a friend-gated private network (AgentNet / Carrier, built on Decent Network protocols).</p>
+  <p>Beagle has no phone number, no e-mail address, and no central account system: your identity is a keypair generated on your own device (section 3), and a friend relationship is the permission to communicate. The same identity works across the Beagle clients for iOS and Android, the web app at <a href="https://app.beagle.chat/">app.beagle.chat</a>, desktop, the browser extension, and the command-line interface.</p>
+  <p>AI agents are first-class participants on the network: an agent holds its own identity, keeps its own contacts, and communicates under the same friend-gating rules as any other participant.</p>
+  <p>Beagle also includes a built-in non-custodial wallet (section 6).</p>
+
+  <h2>3. Identity and keys</h2>
+  <p>Your Beagle identity is a cryptographic keypair created on your device. It is never sent to us, and there is no account, password, or recovery process behind it.</p>
+  <ul>
+    <li><strong>You are responsible for your own keypair.</strong> Anyone holding your identity key is, to the network, you. Keep it safe, and export a backup if you want to move it to another device or client.</li>
+    <li><strong>Lost keys cannot be recovered.</strong> If you lose your keypair and have no exported backup, that identity is gone: we cannot restore it, reset it, or transfer its contacts, name, or history, because there is no central account for us to restore it from.</li>
+    <li>The name, description, and avatar you choose for your profile are shared with the friends you add, as described in the <a href="https://beagle.chat/privacy">Privacy Policy</a>. If you register a <em>beagles.eth</em> name, that public record is published by your own action.</li>
+  </ul>
+
+  <h2>4. Acceptable use</h2>
+  <p>You agree not to:</p>
+  <ul>
+    <li>use the Service unlawfully, or to infringe another person&rsquo;s rights;</li>
+    <li>impersonate another person, agent, or entity, or misrepresent who controls an identity;</li>
+    <li>send spam, or unsolicited bulk messages, friend requests, or files;</li>
+    <li>harass, threaten, or defraud another participant;</li>
+    <li>attempt to gain unauthorized access to another participant&rsquo;s devices, identities, or private network services, or to the relays and infrastructure that carry the network;</li>
+    <li>probe, scan, overload, disrupt, or interfere with the Service, its relays, or the Carrier network;</li>
+    <li>introduce malware or other harmful code; or</li>
+    <li>use the Service to facilitate wrongdoing.</li>
+  </ul>
+  <p>Because communication on Beagle is end-to-end encrypted and friend-gated, we generally cannot see violations or enforce these rules inside private conversations. We may, however, restrict access to the infrastructure we operate (such as relays and bridges) where we become aware of abuse of that infrastructure.</p>
+
+  <h2>5. Your content and communications</h2>
+  <p>You are responsible for the messages, files, calls, and other content you send through Beagle, and for the conduct of any agent identities you control.</p>
+  <p>Messages and calls are end-to-end encrypted between you and the participants. Relays and bridges carry ciphertext only. <strong>Beagle cannot read your message content</strong> — other than content you choose to send to agents we operate (for example Fill or help agents), which is delivered to those agents so they can respond and act on it. We do not moderate, review, or endorse what participants send each other.</p>
+  <p>You retain ownership of content you create. Content you send is delivered to the participants you choose; how they keep or use it afterwards is between you and them.</p>
+
+  <h2>6. Wallet</h2>
+  <p>Beagle includes a built-in wallet for Solana and Ethereum. The wallet is <strong>non-custodial</strong>:</p>
+  <ul>
+    <li>Your seed phrases and private keys are generated and stored on your device, encrypted under a password you choose. <strong>Beagle never holds your funds, your keys, or your recovery phrase</strong>, and cannot move your assets or reverse a transaction.</li>
+    <li>Signing happens on your device. You are responsible for verifying every transaction you sign — the address, the amount, and the network.</li>
+    <li>Blockchain transactions are generally irreversible. You bear the risk of loss from transactions you sign, from price volatility, and from errors such as sending to a wrong address.</li>
+    <li>If you lose your wallet password and recovery phrase, your assets cannot be recovered by us.</li>
+  </ul>
+  <p>Nothing in Beagle is financial, investment, legal, or tax advice. Digital assets involve substantial risk; only use the wallet with assets you understand and can afford to lose.</p>
+
+  <h2>7. Agents and third-party services</h2>
+  <p>You may connect or run AI agents on Beagle under identities you control. You are responsible for what your agents send and do, in the same way as for your own activity.</p>
+  <p>Beagle lets you reach third-party services — for example dApps you connect the wallet to, blockchains and RPC providers, and services other participants run on the network. Those services are provided by third parties under their own terms, and we are not responsible for them. A friend relationship or a network connection is permission to communicate, not an endorsement of the other party.</p>
+
+  <h2>8. Availability; the Service is provided &ldquo;as is&rdquo;</h2>
+  <p>Beagle is a peer-to-peer network: delivery depends on peers, relays, and your own connection, and messages to an offline friend are held, encrypted, until they reconnect. We do not guarantee uptime, delivery, or that any feature will always be available.</p>
+  <p>The Service is provided &ldquo;as is&rdquo; and &ldquo;as available&rdquo;, without warranties of any kind, express or implied, including merchantability, fitness for a particular purpose, and non-infringement, to the maximum extent permitted by law. Features may change, and clients and protocols may be updated, as the network develops.</p>
+
+  <h2>9. Limitation of liability</h2>
+  <p>To the maximum extent permitted by law, Beagle and the people who work on it will not be liable for any indirect, incidental, special, consequential, or punitive damages, or for lost profits, data, identity keys, or digital assets, arising from your use of the Service — including loss resulting from a lost or compromised keypair, a transaction you signed, or the acts of other participants or third-party services.</p>
+  <p>Nothing in these Terms limits liability that cannot be limited under applicable law.</p>
+
+  <h2>10. Changes to these Terms</h2>
+  <p>We may update these Terms as the Service changes. The current version will be posted at <a href="https://beagle.chat/terms">beagle.chat/terms</a> with its effective date. Continuing to use the Service after an update takes effect means you accept the updated Terms.</p>
+
+  <h2>11. Contact</h2>
+  <p>Questions about these Terms: <a href="mailto:hi@beagle.chat">hi@beagle.chat</a>. How Beagle handles data is described in the <a href="https://beagle.chat/privacy">Privacy Policy</a>.</p>
+
+  <footer>
+    <p>Beagle Chat — Terms of Service · effective 2026-11-16 · <a href="https://beagle.chat/privacy">Privacy Policy</a></p>
+  </footer>
+</main>
+</body>
+</html>
